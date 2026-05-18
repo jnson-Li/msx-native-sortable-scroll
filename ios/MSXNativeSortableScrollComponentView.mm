@@ -1,6 +1,5 @@
 #import "MSXNativeSortableScrollComponentView.h"
 
-#import <React/RCTConvert.h>
 #import <react/renderer/components/MSXNativeSortableScrollSpec/ComponentDescriptors.h>
 #import <react/renderer/components/MSXNativeSortableScrollSpec/EventEmitters.h>
 #import <react/renderer/components/MSXNativeSortableScrollSpec/Props.h>
@@ -10,6 +9,42 @@
 #import "RCTFabricComponentsPlugins.h"
 
 using namespace facebook::react;
+
+static UIColor *MSXUIColorFromHexString(NSString *hexString)
+{
+  NSString *cleanString = [[hexString stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet] uppercaseString];
+  if ([cleanString hasPrefix:@"#"]) {
+    cleanString = [cleanString substringFromIndex:1];
+  }
+
+  if (cleanString.length != 6 && cleanString.length != 8) {
+    return UIColor.clearColor;
+  }
+
+  unsigned int value = 0;
+  NSScanner *scanner = [NSScanner scannerWithString:cleanString];
+  if (![scanner scanHexInt:&value]) {
+    return UIColor.clearColor;
+  }
+
+  CGFloat alpha = 1;
+  CGFloat red = 0;
+  CGFloat green = 0;
+  CGFloat blue = 0;
+
+  if (cleanString.length == 8) {
+    alpha = ((value >> 24) & 0xFF) / 255.0;
+    red = ((value >> 16) & 0xFF) / 255.0;
+    green = ((value >> 8) & 0xFF) / 255.0;
+    blue = (value & 0xFF) / 255.0;
+  } else {
+    red = ((value >> 16) & 0xFF) / 255.0;
+    green = ((value >> 8) & 0xFF) / 255.0;
+    blue = (value & 0xFF) / 255.0;
+  }
+
+  return [UIColor colorWithRed:red green:green blue:blue alpha:alpha];
+}
 
 @interface MSXNativeSortableScrollComponentView () <RCTMSXNativeSortableScrollViewViewProtocol>
 @end
@@ -93,7 +128,7 @@ using namespace facebook::react;
 
   if (oldViewProps.dragActiveBackgroundColor != newViewProps.dragActiveBackgroundColor) {
     NSString *colorString = [[NSString alloc] initWithUTF8String:newViewProps.dragActiveBackgroundColor.c_str()];
-    _scrollView.dragActiveBackgroundColor = colorString.length > 0 ? [RCTConvert UIColor:colorString] : UIColor.clearColor;
+    _scrollView.dragActiveBackgroundColor = colorString.length > 0 ? MSXUIColorFromHexString(colorString) : UIColor.clearColor;
   }
 
   [super updateProps:props oldProps:oldProps];

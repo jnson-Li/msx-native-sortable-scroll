@@ -30,6 +30,48 @@ static const CGFloat MSXDragActivationMoveThreshold = 4.0;
 
 @implementation MSXNativeSortableScrollView
 
+- (UIColor *)resolvedDragActiveBackgroundColor
+{
+  if (self.dragActiveBackgroundColor != nil && self.dragActiveBackgroundColor != UIColor.clearColor) {
+    return self.dragActiveBackgroundColor;
+  }
+
+  return UIColor.clearColor;
+}
+
+- (UIView *)dragSnapshotViewForView:(UIView *)view
+{
+  UIColor *activeBackgroundColor = [self resolvedDragActiveBackgroundColor];
+  UIGraphicsImageRendererFormat *format = [UIGraphicsImageRendererFormat defaultFormat];
+  format.opaque = NO;
+  UIGraphicsImageRenderer *renderer =
+      [[UIGraphicsImageRenderer alloc] initWithSize:view.bounds.size format:format];
+
+  UIImage *snapshotImage = [renderer imageWithActions:^(UIGraphicsImageRendererContext * _Nonnull context) {
+    CGContextRef cgContext = context.CGContext;
+    CGContextSetFillColorWithColor(cgContext, activeBackgroundColor.CGColor);
+    CGContextFillRect(cgContext, view.bounds);
+
+    BOOL rendered = [view drawViewHierarchyInRect:view.bounds afterScreenUpdates:YES];
+    if (!rendered) {
+      [view.layer renderInContext:cgContext];
+    }
+  }];
+
+  static const CGFloat MSXDragSnapshotInset = 3.0;
+
+  UIView *containerView = [[UIView alloc] initWithFrame:view.frame];
+  containerView.backgroundColor = activeBackgroundColor;
+  containerView.layer.masksToBounds = NO;
+
+  UIImageView *imageView = [[UIImageView alloc] initWithImage:snapshotImage];
+  imageView.frame = CGRectInset(containerView.bounds, MSXDragSnapshotInset, MSXDragSnapshotInset);
+  imageView.contentMode = UIViewContentModeScaleToFill;
+  imageView.layer.masksToBounds = NO;
+  [containerView addSubview:imageView];
+  return containerView;
+}
+
 - (instancetype)init
 {
   if ((self = [super initWithFrame:CGRectZero])) {
@@ -230,10 +272,9 @@ static const CGFloat MSXDragActivationMoveThreshold = 4.0;
   self.activeView = view;
   self.activeViewPreviousBackgroundColor = view.backgroundColor;
   self.activeTouchOffsetY = self.pendingTouchOffsetY;
-  view.backgroundColor = self.dragActiveBackgroundColor;
-  self.activeSnapshotView = [view snapshotViewAfterScreenUpdates:YES];
-  self.activeSnapshotView.frame = view.frame;
-  self.activeSnapshotView.backgroundColor = self.dragActiveBackgroundColor;
+  view.backgroundColor = [self resolvedDragActiveBackgroundColor];
+
+  self.activeSnapshotView = [self dragSnapshotViewForView:view];
   self.activeSnapshotView.layer.cornerRadius = 0;
   self.activeSnapshotView.layer.masksToBounds = NO;
   [self addSubview:self.activeSnapshotView];
