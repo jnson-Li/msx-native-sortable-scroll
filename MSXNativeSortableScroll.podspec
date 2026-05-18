@@ -10,7 +10,9 @@ Pod::Spec.new do |s|
   s.source_files = "ios/**/*.{h,m,mm}"
   s.requires_arc = true
 
-  s.dependency "React-Core"
-  s.dependency "React-RCTImage"
-  s.dependency "React-Codegen"
+  install_modules_dependencies(s)
+
+  if ENV['RCT_NEW_ARCH_ENABLED'] != '1'
+    s.exclude_files = "ios/MSXNativeSortableScrollComponentView.{h,mm}"
+  end
 end

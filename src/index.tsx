@@ -1,10 +1,8 @@
 import React from 'react'
-import {
-  requireNativeComponent,
-  StyleProp,
-  ViewProps,
-  ViewStyle,
-} from 'react-native'
+import { StyleProp, ViewProps, ViewStyle } from 'react-native'
+import NativeSortableScrollViewComponent, {
+  NativeSortableScrollDragEvent as NativeSortableScrollFabricDragEvent,
+} from './MSXNativeSortableScrollViewNativeComponent'
 
 export type NativeSortableScrollDragEvent = {
   nativeEvent: {
@@ -30,13 +28,45 @@ export type NativeSortableScrollViewProps = ViewProps & {
   children?: React.ReactNode
 }
 
-const NativeSortableScrollViewComponent =
-  requireNativeComponent<NativeSortableScrollViewProps>(
-    'MSXNativeSortableScrollView'
-  )
+const parseFabricOrder = (order: string) => {
+  try {
+    const parsed = JSON.parse(order)
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+const wrapFabricDragEvent =
+  (handler?: (event: NativeSortableScrollDragEvent) => void) =>
+  (event: { nativeEvent: NativeSortableScrollFabricDragEvent }) => {
+    if (!handler) return
+
+    handler({
+      nativeEvent: {
+        ...event.nativeEvent,
+        order: parseFabricOrder(event.nativeEvent.order),
+      },
+    })
+  }
 
 export default function NativeSortableScrollView(
   props: NativeSortableScrollViewProps
 ) {
-  return <NativeSortableScrollViewComponent {...props} />
+  const {
+    containerStyle: _containerStyle,
+    onDragStart,
+    onDragEnd,
+    onFavoriteLongPress,
+    ...nativeProps
+  } = props
+
+  return (
+    <NativeSortableScrollViewComponent
+      {...nativeProps}
+      onDragStart={wrapFabricDragEvent(onDragStart)}
+      onDragEnd={wrapFabricDragEvent(onDragEnd)}
+      onFavoriteLongPress={wrapFabricDragEvent(onFavoriteLongPress)}
+    />
+  )
 }

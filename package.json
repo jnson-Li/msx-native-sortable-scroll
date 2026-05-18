@@ -11,6 +11,19 @@
     "*.podspec",
     "react-native.config.js"
   ],
+  "codegenConfig": {
+    "name": "MSXNativeSortableScrollSpec",
+    "type": "components",
+    "jsSrcsDir": "src",
+    "android": {
+      "javaPackageName": "com.msx.nativesortablescroll"
+    },
+    "ios": {
+      "componentProvider": {
+        "MSXNativeSortableScrollView": "MSXNativeSortableScrollComponentView"
+      }
+    }
+  },
   "peerDependencies": {
     "react": "*",
     "react-native": "*"
