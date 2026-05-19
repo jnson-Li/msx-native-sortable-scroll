@@ -7,13 +7,13 @@ import android.view.HapticFeedbackConstants
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
-import android.widget.FrameLayout
 import android.widget.ScrollView
 import androidx.core.view.GestureDetectorCompat
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.uimanager.ThemedReactContext
 import com.facebook.react.uimanager.events.RCTEventEmitter
+import org.json.JSONArray
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -23,7 +23,26 @@ class MSXNativeSortableScrollView(context: Context) : ScrollView(context) {
     private const val DRAG_ACTIVATION_MOVE_THRESHOLD_PX = 4f
   }
 
-  private val contentLayout = FrameLayout(context)
+  private inner class ContentLayout(context: Context) : android.view.ViewGroup(context) {
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+      val width = MeasureSpec.getSize(widthMeasureSpec)
+      val contentHeight = max((orderedChildren.size * rowHeightPx).toInt(), 0)
+      val exactChildWidthSpec = MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY)
+      val exactChildHeightSpec = MeasureSpec.makeMeasureSpec(rowHeightPx.toInt(), MeasureSpec.EXACTLY)
+
+      for (index in 0 until childCount) {
+        getChildAt(index).measure(exactChildWidthSpec, exactChildHeightSpec)
+      }
+
+      setMeasuredDimension(width, contentHeight)
+    }
+
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+      applyChildLayouts()
+    }
+  }
+
+  private val contentLayout = ContentLayout(context)
   private val orderedChildren = mutableListOf<View>()
   private val detector = GestureDetectorCompat(context, LongPressListener())
   private var activeView: View? = null
@@ -56,6 +75,10 @@ class MSXNativeSortableScrollView(context: Context) : ScrollView(context) {
 
   init {
     isVerticalScrollBarEnabled = false
+    clipToPadding = true
+    clipChildren = true
+    contentLayout.clipToPadding = true
+    contentLayout.clipChildren = true
     addView(
       contentLayout,
       LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
@@ -100,13 +123,6 @@ class MSXNativeSortableScrollView(context: Context) : ScrollView(context) {
       MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
       MeasureSpec.makeMeasureSpec(childHeight, MeasureSpec.EXACTLY)
     )
-
-    orderedChildren.forEach { child ->
-      child.measure(
-        MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
-        MeasureSpec.makeMeasureSpec(rowHeightPx.toInt(), MeasureSpec.EXACTLY)
-      )
-    }
   }
 
   override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
@@ -115,12 +131,13 @@ class MSXNativeSortableScrollView(context: Context) : ScrollView(context) {
     applyChildLayouts()
   }
 
-  private fun applyChildLayouts() {
+  private fun applyChildLayouts(resetTranslations: Boolean = false) {
     orderedChildren.forEachIndexed { index, child ->
       val top = (index * rowHeightPx).toInt()
+      child.animate().cancel()
       child.layout(0, top, width, top + rowHeightPx.toInt())
-      if (child !== activeView) {
-        child.animate().translationY(0f).setDuration(90).start()
+      if (resetTranslations && child !== activeView) {
+        child.translationY = 0f
       }
     }
   }
@@ -216,11 +233,13 @@ class MSXNativeSortableScrollView(context: Context) : ScrollView(context) {
     if (nextIndex == targetIndex || activeView == null) return
 
     val draggedView = activeView!!
+    val draggedVisualTop = draggedView.top + draggedView.translationY
     orderedChildren.remove(draggedView)
     orderedChildren.add(nextIndex, draggedView)
     targetIndex = nextIndex
     triggerReorderHaptic()
     applyChildLayouts()
+    draggedView.translationY = draggedVisualTop - draggedView.top
   }
 
   private fun updateAutoScroll() {
@@ -291,7 +310,7 @@ class MSXNativeSortableScrollView(context: Context) : ScrollView(context) {
     draggedView.elevation = 0f
     draggedView.alpha = 1f
     draggedView.background = activeViewPreviousBackgroundColor
-    applyChildLayouts()
+    applyChildLayouts(resetTranslations = true)
 
     sendEvent("onDragEnd", activeIndex, targetIndex)
 
@@ -308,9 +327,7 @@ class MSXNativeSortableScrollView(context: Context) : ScrollView(context) {
       putInt("fromIndex", fromIndex)
       putInt("toIndex", toIndex)
       putDouble("scrollY", scrollY.toDouble())
-      val orderArray = Arguments.createArray()
-      currentOrderedKeys().forEach(orderArray::pushString)
-      putArray("order", orderArray)
+      putString("order", JSONArray(currentOrderedKeys()).toString())
     }
 
     reactContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(id, eventName, event)

@@ -6,6 +6,7 @@ import com.facebook.react.uimanager.ThemedReactContext
 import com.facebook.react.uimanager.ViewGroupManager
 import com.facebook.react.uimanager.annotations.ReactProp
 import com.facebook.react.uimanager.events.RCTEventEmitter
+import com.facebook.react.uimanager.PixelUtil
 
 class MSXNativeSortableScrollManager : ViewGroupManager<MSXNativeSortableScrollView>() {
   override fun getName(): String = "MSXNativeSortableScrollView"
@@ -29,7 +30,7 @@ class MSXNativeSortableScrollManager : ViewGroupManager<MSXNativeSortableScrollV
 
   @ReactProp(name = "rowHeight")
   fun setRowHeight(view: MSXNativeSortableScrollView, rowHeight: Float) {
-    view.rowHeightPx = rowHeight
+    view.rowHeightPx = PixelUtil.toPixelFromDIP(rowHeight)
   }
 
   @ReactProp(name = "itemKeys")
@@ -49,12 +50,12 @@ class MSXNativeSortableScrollManager : ViewGroupManager<MSXNativeSortableScrollV
 
   @ReactProp(name = "autoScrollEdgeDistance", defaultFloat = 72f)
   fun setAutoScrollEdgeDistance(view: MSXNativeSortableScrollView, distance: Float) {
-    view.autoScrollEdgeDistancePx = distance
+    view.autoScrollEdgeDistancePx = PixelUtil.toPixelFromDIP(distance)
   }
 
   @ReactProp(name = "autoScrollStep", defaultFloat = 4f)
   fun setAutoScrollStep(view: MSXNativeSortableScrollView, step: Float) {
-    view.autoScrollStepPx = step
+    view.autoScrollStepPx = PixelUtil.toPixelFromDIP(step)
   }
 
   @ReactProp(name = "dragActiveBackgroundColor")
