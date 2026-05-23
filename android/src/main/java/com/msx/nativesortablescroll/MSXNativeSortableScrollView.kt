@@ -99,20 +99,113 @@ class MSXNativeSortableScrollView(context: Context) : ScrollView(context) {
   }
 
   fun removeReactChildAt(index: Int) {
+    resetInteractionState()
     val child = orderedChildren.removeAt(index)
     contentLayout.removeView(child)
     keyByViewId.remove(child.id)
+    rebuildKeyMapping()
+    requestLayout()
+  }
+
+  fun removeReactChild(child: View) {
+    val index = orderedChildren.indexOf(child)
+    if (index < 0) return
+    removeReactChildAt(index)
+  }
+
+  fun removeAllReactChildren() {
+    resetInteractionState()
+    orderedChildren.clear()
+    keyByViewId.clear()
+    contentLayout.removeAllViews()
     requestLayout()
   }
 
   fun setItemKeys(readableArray: ReadableArray?) {
+    val previousKeys = itemKeys.toList()
+    val previousKeyByViewId = keyByViewId.toMap()
+
     itemKeys.clear()
     readableArray?.let { array ->
       for (i in 0 until array.size()) {
         itemKeys.add(array.getString(i) ?: i.toString())
       }
     }
+
+    if (previousKeys != itemKeys) {
+      resetForDataChange(previousKeyByViewId)
+    }
+
     rebuildKeyMapping()
+  }
+
+  private fun resetForDataChange(previousKeyByViewId: Map<Int, String>) {
+    resetInteractionState()
+    orderedChildren.forEach { child ->
+      child.animate().cancel()
+      child.translationY = 0f
+      child.elevation = 0f
+      child.alpha = 1f
+    }
+    activeViewPreviousBackgroundColor = null
+    scrollTo(scrollX, 0)
+    reorderChildrenByKeys(previousKeyByViewId)
+    requestLayout()
+  }
+
+  private fun resetInteractionState() {
+    removeCallbacks(autoScrollRunnable)
+    removeCallbacks(favoriteLongPressRunnable)
+    activeView?.let { child ->
+      child.animate().cancel()
+      child.translationY = 0f
+      child.elevation = 0f
+      child.alpha = 1f
+      child.background = activeViewPreviousBackgroundColor
+    }
+    activeView = null
+    activeIndex = -1
+    targetIndex = -1
+    pendingDragIndex = -1
+    touchOffsetY = 0f
+    lastTouchYInContent = 0f
+    pendingTouchOffsetY = 0f
+    pendingTouchStartYInContent = 0f
+    autoScrollDirection = 0
+    autoScrollPosted = false
+    favoriteLongPressPosted = false
+    favoriteLongPressTriggered = false
+  }
+
+  private fun reorderChildrenByKeys(previousKeyByViewId: Map<Int, String>) {
+    if (orderedChildren.size <= 1 || itemKeys.isEmpty()) return
+
+    val childrenByKey = orderedChildren
+      .mapNotNull { child -> previousKeyByViewId[child.id]?.let { key -> key to child } }
+      .toMap()
+
+    if (childrenByKey.isEmpty()) return
+
+    val nextChildren = mutableListOf<View>()
+    val usedChildren = mutableSetOf<View>()
+
+    itemKeys.forEach { key ->
+      val child = childrenByKey[key]
+      if (child != null && usedChildren.add(child)) {
+        nextChildren.add(child)
+      }
+    }
+
+    orderedChildren.forEach { child ->
+      if (usedChildren.add(child)) {
+        nextChildren.add(child)
+      }
+    }
+
+    if (nextChildren.size == orderedChildren.size) {
+      orderedChildren.clear()
+      orderedChildren.addAll(nextChildren)
+    }
   }
 
   override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -159,7 +252,21 @@ class MSXNativeSortableScrollView(context: Context) : ScrollView(context) {
 
   override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
     detector.onTouchEvent(ev)
-    return activeView != null || super.onInterceptTouchEvent(ev)
+    if (activeView != null) return true
+
+    if (
+      ev.actionMasked == MotionEvent.ACTION_MOVE &&
+      pendingDragIndex >= 0 &&
+      !favoriteLongPressTriggered
+    ) {
+      val touchYInContent = ev.y + scrollY
+      if (abs(touchYInContent - pendingTouchStartYInContent) > DRAG_ACTIVATION_MOVE_THRESHOLD_PX) {
+        beginDrag(pendingDragIndex, touchYInContent, pendingTouchOffsetY)
+        return activeView != null
+      }
+    }
+
+    return super.onInterceptTouchEvent(ev)
   }
 
   override fun onTouchEvent(ev: MotionEvent): Boolean {
@@ -362,6 +469,7 @@ class MSXNativeSortableScrollView(context: Context) : ScrollView(context) {
       pendingTouchStartYInContent = touchYInContent
       favoriteLongPressTriggered = false
       scheduleFavoriteLongPress()
+      parent?.requestDisallowInterceptTouchEvent(true)
     }
   }
 }

@@ -28,6 +28,16 @@ class MSXNativeSortableScrollManager : ViewGroupManager<MSXNativeSortableScrollV
     parent.removeReactChildAt(index)
   }
 
+  override fun removeView(parent: MSXNativeSortableScrollView, view: android.view.View) {
+    parent.removeReactChild(view)
+  }
+
+  override fun removeAllViews(parent: MSXNativeSortableScrollView) {
+    parent.removeAllReactChildren()
+  }
+
+  override fun needsCustomLayoutForChildren(): Boolean = true
+
   @ReactProp(name = "rowHeight")
   fun setRowHeight(view: MSXNativeSortableScrollView, rowHeight: Float) {
     view.rowHeightPx = PixelUtil.toPixelFromDIP(rowHeight)
