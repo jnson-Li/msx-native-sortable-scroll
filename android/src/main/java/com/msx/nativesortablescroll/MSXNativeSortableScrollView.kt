@@ -7,12 +7,15 @@ import android.view.HapticFeedbackConstants
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.widget.ScrollView
 import androidx.core.view.GestureDetectorCompat
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.uimanager.ThemedReactContext
+import com.facebook.react.uimanager.PixelUtil
 import com.facebook.react.uimanager.events.RCTEventEmitter
+import com.facebook.react.views.view.ReactViewGroup
 import org.json.JSONArray
 import kotlin.math.abs
 import kotlin.math.max
@@ -23,7 +26,12 @@ class MSXNativeSortableScrollView(context: Context) : ScrollView(context) {
     private const val DRAG_ACTIVATION_MOVE_THRESHOLD_PX = 4f
   }
 
-  private inner class ContentLayout(context: Context) : android.view.ViewGroup(context) {
+  private inner class ContentLayout(context: Context) : ReactViewGroup(context) {
+    private var touchTargetChild: View? = null
+    private var touchStartX = 0f
+    private var touchStartY = 0f
+    private var touchCancelledForScroll = false
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
       val width = MeasureSpec.getSize(widthMeasureSpec)
       val contentHeight = max((orderedChildren.size * rowHeightPx).toInt(), 0)
@@ -40,11 +48,79 @@ class MSXNativeSortableScrollView(context: Context) : ScrollView(context) {
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
       applyChildLayouts()
     }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+      when (ev.actionMasked) {
+        MotionEvent.ACTION_DOWN -> {
+          touchStartX = ev.x
+          touchStartY = ev.y
+          touchCancelledForScroll = false
+          touchTargetChild = findChildUnderContentPoint(ev.x, ev.y)
+
+          touchTargetChild?.let { child ->
+            return dispatchTouchEventToChild(child, ev)
+          }
+        }
+        MotionEvent.ACTION_MOVE -> {
+          val child = touchTargetChild
+          if (child != null) {
+            val movedEnoughForScroll =
+              abs(ev.x - touchStartX) > touchSlop || abs(ev.y - touchStartY) > touchSlop
+
+            if (movedEnoughForScroll && !touchCancelledForScroll) {
+              touchCancelledForScroll = true
+              val cancelEvent = MotionEvent.obtain(ev)
+              cancelEvent.action = MotionEvent.ACTION_CANCEL
+              dispatchTouchEventToChild(child, cancelEvent)
+              cancelEvent.recycle()
+            }
+
+            if (!touchCancelledForScroll) {
+              return dispatchTouchEventToChild(child, ev)
+            }
+          }
+        }
+        MotionEvent.ACTION_UP,
+        MotionEvent.ACTION_CANCEL -> {
+          val child = touchTargetChild
+          touchTargetChild = null
+
+          if (child != null && !touchCancelledForScroll) {
+            touchCancelledForScroll = false
+            return dispatchTouchEventToChild(child, ev)
+          }
+
+          touchCancelledForScroll = false
+        }
+      }
+
+      return super.dispatchTouchEvent(ev)
+    }
+
+    private fun findChildUnderContentPoint(x: Float, y: Float): View? {
+      if (x < 0 || x >= width || y < 0) return null
+
+      val index = (y / rowHeightPx).toInt()
+      val child = orderedChildren.getOrNull(index) ?: return null
+      if (y < child.top || y >= child.bottom) return null
+
+      return child
+    }
+
+    private fun dispatchTouchEventToChild(child: View, event: MotionEvent): Boolean {
+      val childEvent = MotionEvent.obtain(event)
+      childEvent.offsetLocation(-child.left.toFloat(), -child.top.toFloat())
+
+      val handled = child.dispatchTouchEvent(childEvent)
+      childEvent.recycle()
+      return handled
+    }
   }
 
   private val contentLayout = ContentLayout(context)
   private val orderedChildren = mutableListOf<View>()
   private val detector = GestureDetectorCompat(context, LongPressListener())
+  private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
   private var activeView: View? = null
   private var activeIndex = -1
   private var targetIndex = -1
@@ -433,7 +509,7 @@ class MSXNativeSortableScrollView(context: Context) : ScrollView(context) {
     val event = Arguments.createMap().apply {
       putInt("fromIndex", fromIndex)
       putInt("toIndex", toIndex)
-      putDouble("scrollY", scrollY.toDouble())
+      putDouble("scrollY", PixelUtil.toDIPFromPixel(scrollY.toFloat()).toDouble())
       putString("order", JSONArray(currentOrderedKeys()).toString())
     }
 
@@ -471,5 +547,21 @@ class MSXNativeSortableScrollView(context: Context) : ScrollView(context) {
       scheduleFavoriteLongPress()
       parent?.requestDisallowInterceptTouchEvent(true)
     }
+
+    override fun onSingleTapUp(e: MotionEvent): Boolean {
+      if (activeView != null || favoriteLongPressTriggered) return false
+
+      val index = getIndexForTouchY(e.y + scrollY)
+      if (index < 0) return false
+
+      clearPendingDragState()
+      sendEvent("onItemPress", index, index)
+      return true
+    }
+  }
+
+  private fun getIndexForTouchY(touchYInContent: Float): Int {
+    if (orderedChildren.isEmpty() || touchYInContent < 0) return -1
+    return min(max((touchYInContent / rowHeightPx).toInt(), 0), orderedChildren.size - 1)
   }
 }

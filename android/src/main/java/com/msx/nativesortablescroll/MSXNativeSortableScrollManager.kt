@@ -79,6 +79,7 @@ class MSXNativeSortableScrollManager : ViewGroupManager<MSXNativeSortableScrollV
 
   override fun getExportedCustomDirectEventTypeConstants(): MutableMap<String, Any> =
     mutableMapOf(
+      "onItemPress" to MapBuilder.of("registrationName", "onItemPress"),
       "onDragStart" to MapBuilder.of("registrationName", "onDragStart"),
       "onDragEnd" to MapBuilder.of("registrationName", "onDragEnd"),
       "onFavoriteLongPress" to MapBuilder.of("registrationName", "onFavoriteLongPress"),

@@ -21,6 +21,7 @@ export type NativeSortableScrollViewProps = ViewProps & {
   autoScrollEdgeDistance?: number
   autoScrollStep?: number
   dragActiveBackgroundColor?: string
+  onItemPress?: (event: NativeSortableScrollDragEvent) => void
   onDragStart?: (event: NativeSortableScrollDragEvent) => void
   onDragEnd?: (event: NativeSortableScrollDragEvent) => void
   onFavoriteLongPress?: (event: NativeSortableScrollDragEvent) => void
@@ -55,6 +56,7 @@ export default function NativeSortableScrollView(
 ) {
   const {
     containerStyle: _containerStyle,
+    onItemPress,
     onDragStart,
     onDragEnd,
     onFavoriteLongPress,
@@ -64,6 +66,7 @@ export default function NativeSortableScrollView(
   return (
     <NativeSortableScrollViewComponent
       {...nativeProps}
+      onItemPress={wrapFabricDragEvent(onItemPress)}
       onDragStart={wrapFabricDragEvent(onDragStart)}
       onDragEnd={wrapFabricDragEvent(onDragEnd)}
       onFavoriteLongPress={wrapFabricDragEvent(onFavoriteLongPress)}

@@ -21,6 +21,7 @@ export interface NativeProps extends ViewProps {
   autoScrollEdgeDistance?: Float
   autoScrollStep?: Float
   dragActiveBackgroundColor?: string
+  onItemPress?: DirectEventHandler<NativeSortableScrollDragEvent>
   onDragStart?: DirectEventHandler<NativeSortableScrollDragEvent>
   onDragEnd?: DirectEventHandler<NativeSortableScrollDragEvent>
   onFavoriteLongPress?: DirectEventHandler<NativeSortableScrollDragEvent>
